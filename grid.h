@@ -4,18 +4,17 @@
 #ifndef GRID_H
 #define GRID_H
 
-#define LENGTH 10
-
 typedef struct Grid
 {
     /* data */
     char* grid;
+    int length;
 
 } Grid;
 
-Grid* init_grid(void);
+Grid* init_grid(int length);
 
-void set_random_state(Grid* g);
+void set_random_state(Grid* g, int random_alive_fraction);
 
 void run_single_iteration(Grid* g);
 
