@@ -6,6 +6,7 @@
 
 #define CURRENT_FLAG 0x0F
 #define NEXT_FLAG 0xF0
+
 #define EARLY_EXIT 1
 
 typedef struct Grid

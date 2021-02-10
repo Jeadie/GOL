@@ -3,12 +3,27 @@
 
 #include "grid.h"
 
+
+#define REDUCTION 1
+#if REDUCTION
+
+#define offset_mask(y) (1 << (y % 4))
+#define get_current_cell_value(g, x, y) (g->grid[x*g->length + y/4] & offset_mask(y)) >> (y % 4)
+#define get_next_cell_value(g, x, y) (g->grid[x*g->length + y/4] & (offset_mask(y) << 4) ) >> ((y % 4) + 4)
+
+
+#define set_current_cell_value(g, x, y, value)  g->grid[x*g->length + y/4] =  (g->grid[x*g->length + y/4] & (~offset_mask(y))) | (value << (y % 4) )
+#define set_next_cell_value(g, x, y, value) g->grid[x*g->length + y/4] = (g->grid[x*g->length + y/4] & ~(offset_mask(y) << 4)) | (value << ((y % 4) +4 ))
+
+# else
+
 #define get_current_cell_value(g, x, y) (g->grid[x*g->length + y] & CURRENT_FLAG)
 #define set_current_cell_value(g, x, y, value)  g->grid[x*g->length + y] = (g->grid[x*g->length + y] & NEXT_FLAG) | (CURRENT_FLAG & value);
 
 #define get_next_cell_value(g, x, y) ((g->grid[x*g->length + y] & NEXT_FLAG) >> 4)
 #define set_next_cell_value(g, x, y, value) g->grid[x*g->length + y] = (g->grid[x*g->length + y] & CURRENT_FLAG) | (NEXT_FLAG & (value << 4));
 
+#endif 
 
 /**
  * Initialises the Grid struct.
@@ -16,7 +31,7 @@
  */
 Grid* init_grid(int length) {
     Grid* g = (Grid*) malloc(sizeof(Grid));
-    g->grid = (char*) malloc(length * length * sizeof(char));
+    g->grid = (char*) malloc(length * length * sizeof(char)/(REDUCTION ? 4 : 1));
     g->length = length;
     return g;
 }
@@ -58,7 +73,7 @@ int update_cells(Grid* g) {
  * Computes the next status of a cell; i.e. the Game of Life update rule.
  */
 char compute_next_status(char current_status, int live_neighbours) {
-    return (current_status & (live_neighbours == 2 || live_neighbours == 3)) || (!current_status & (live_neighbours == 3));
+    return (current_status && (live_neighbours == 2 || live_neighbours == 3)) || (!current_status && (live_neighbours == 3));
 }
 
 /**
@@ -75,7 +90,8 @@ int run_single_iteration(Grid* g) {
 
             // Sets grid cell so that next status is at the 4 leftmost bits.
             set_next_cell_value(g, i, j, next_status);
-        }
+
+        }   
     }
     return (update_cells(g) == 0);
 }
@@ -99,7 +115,7 @@ void print_grid(Grid* g, FILE* f) {
     for(int i=1; i < g->length-1; i++) {
         fprintf(f, "\033[%d;3H", i+2);
         for(int j=1; j < g->length-1; j++) {
-            char value = get_current_cell_value(g, i, j) & 0x01 ? '+' : '-';
+            char value = get_current_cell_value(g, i, j) ? '+' : '-';
             fprintf(f, "%c ", value);
         }
         fputc('\n', f);
