@@ -4,7 +4,7 @@
 #include "grid.h"
 
 
-char get_grid_value(Grid* g, int x, int y);
+char get_current_cell_value(Grid* g, int x, int y);
 char is_cell_alive(Grid* g, int x, int y);
 
 /**
@@ -24,18 +24,10 @@ Grid* init_grid(int length) {
  */
 int get_number_of_live_neighbours(Grid* g, int x, int y){
     int count = 0;
-    if (x != 0 && is_cell_alive(g,x-1, y)) {
-        count ++;
-    };
-    if (y != 0 && is_cell_alive(g,x, y-1)) {
-        count ++;
-    };
-    if (y != g->length && is_cell_alive(g,x, y+1)) {
-        count ++;
-    };
-    if (x != g->length && is_cell_alive(g,x+1, y)) {
-        count ++;
-    };
+    count += (x != 0 && is_cell_alive(g,x-1, y)); 
+    count += (y != 0 && is_cell_alive(g,x, y-1));
+    count += (y != g->length && is_cell_alive(g,x, y+1));
+    count += (x != g->length && is_cell_alive(g,x+1, y));
     return count; 
 }
 
@@ -44,54 +36,84 @@ int get_number_of_live_neighbours(Grid* g, int x, int y){
  * 
  */
 char is_cell_alive(Grid* g, int x, int y) {
-    return (char) get_grid_value(g, x, y) & 0x01;
+    return (char) get_current_cell_value(g, x, y);
 }
 
 /**
  * Returns the value of the Grid at (x,y).
  */
-char get_grid_value(Grid* g, int x, int y) {
-    return g->grid[x*g->length + y];
+char get_current_cell_value(Grid* g, int x, int y) {
+    return g->grid[x*g->length + y] & CURRENT_FLAG;
 }
 
 /**
  * Sets the value of the Grid at (x,y). Not responsible for properly setting the 
  * current and upcoming values appropriately. 
  */
-void set_grid_value(Grid* g, int x, int y, char value) {
-    g->grid[x*g->length + y] = value;
+void set_current_cell_value(Grid* g, int x, int y, char value) {
+    g->grid[x*g->length + y] = (g->grid[x*g->length + y] & NEXT_FLAG) | (CURRENT_FLAG & value);
+};
+
+/**
+ * Returns the value of the Grid at (x,y).
+ */
+char get_next_cell_value(Grid* g, int x, int y) {
+    return (g->grid[x*g->length + y] & NEXT_FLAG) >> 4;
+}
+
+/**
+ * Sets the value of the Grid at (x,y). Not responsible for properly setting the 
+ * current and upcoming values appropriately. 
+ */
+void set_next_cell_value(Grid* g, int x, int y, char value) {
+    g->grid[x*g->length + y] = (g->grid[x*g->length + y] & CURRENT_FLAG) | (NEXT_FLAG & (value << 4));
 };
 
 /**
  * Updates all cells in the Grid g by setting the current value of each cell to its 
  * current next value. Does not clear the next value of any cell (the 4 leftmost 
  * bits).
+ * 
+ * Returns: The number of cells that changed value.
  *
  */
-void update_cells(Grid* g) {
+int update_cells(Grid* g) {
+    int has_changed = 0;
+
     for(int i=1; i < g->length-1; i++) {
-            for(int j=1; j < g->length-1; j++) {
-                set_grid_value(g, i, j, get_grid_value(g,i,j) >> 4);
-            }
+        for(int j=1; j < g->length-1; j++) {
+            has_changed += get_next_cell_value(g,i,j) ^ get_current_cell_value(g,i,j);
+            set_current_cell_value(g,i,j, get_next_cell_value(g,i,j));
+        }
     }
+    return has_changed;
+}
+
+/**
+ * Computes the next status of a cell; i.e. the Game of Life update rule.
+ */
+char compute_next_status(char current_status, int live_neighbours) {
+    return (current_status & (live_neighbours == 2 || live_neighbours == 3)) || (!current_status & (live_neighbours == 3));
 }
 
 /**
  * Runs a single iteration of Game of Life.
+ * 
+ * Returns: 1 if this single iteration changed no cells, 0 otherwise.
  */
-void run_single_iteration(Grid* g) {
+int run_single_iteration(Grid* g) {
     for(int i=1; i < g->length-1; i++) {
         for(int j=1; j < g->length-1; j++) {
             char current_status = is_cell_alive(g, i, j);
             int live_neighbours = get_number_of_live_neighbours(g, i, j);
-            char next_status = (current_status & (live_neighbours == 2 || live_neighbours == 3)) || (!current_status & (live_neighbours == 3));
+            char next_status = compute_next_status(current_status, live_neighbours);
 
             // Sets grid cell so that next status is at the 4 leftmost bits.
-            set_grid_value(g, i, j, current_status | (next_status << 4));
+            set_next_cell_value(g, i, j, next_status);
         }
     }
-    update_cells(g);
-}
+    return (update_cells(g) == 0);
+    };
 
 /**
  * Deletes the Grid struct and all associated memory.  
@@ -112,7 +134,7 @@ void print_grid(Grid* g, FILE* f) {
     for(int i=1; i < g->length-1; i++) {
         fprintf(f, "\033[%d;3H", i+2);
         for(int j=1; j < g->length-1; j++) {
-            char value = get_grid_value(g, i, j) & 0x01 ? '+' : '-';
+            char value = get_current_cell_value(g, i, j) & 0x01 ? '+' : '-';
             fprintf(f, "%c ", value);
         }
         fputc('\n', f);
@@ -128,7 +150,7 @@ void print_grid(Grid* g, FILE* f) {
 void set_random_state(Grid* g, int random_alive_fraction){
     for(int i=1; i < g->length-1; i++) {
         for(int j=1; j < g->length-1; j++) {
-            set_grid_value(g, i, j, ((rand() % 100) < random_alive_fraction) & 0x01);
+            set_current_cell_value(g, i, j, ((rand() % 100) < random_alive_fraction) & 0x01);
         }
     }
 };

@@ -25,7 +25,9 @@ int main(int argc, char** argv) {
 
     for (int i = 0; i < ITERATIONS; i++ ) {
         print_grid(g, stdout);
-        run_single_iteration(g);
+        if (run_single_iteration(g)){
+            exit(0);
+        };
         usleep(MILLISECONDS_SLEEP * 1000);
     }
 
