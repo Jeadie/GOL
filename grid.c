@@ -8,12 +8,12 @@
 #if REDUCTION
 
 #define offset_mask(y) (1 << (y % 4))
-#define get_current_cell_value(g, x, y) (g->grid[x*g->length + y/4] & offset_mask(y)) >> (y % 4)
-#define get_next_cell_value(g, x, y) (g->grid[x*g->length + y/4] & (offset_mask(y) << 4) ) >> ((y % 4) + 4)
+// #define get_current_cell_value(g, x, y) ((g->grid[x*g->length + y/4] & offset_mask(y)) >> (y % 4))
+// #define get_next_cell_value(g, x, y)  ((g->grid[x*g->length + y/4] & (offset_mask(y) << 4) ) >> ((y % 4) + 4))
 
 
-#define set_current_cell_value(g, x, y, value)  g->grid[x*g->length + y/4] =  (g->grid[x*g->length + y/4] & (~offset_mask(y))) | (value << (y % 4) )
-#define set_next_cell_value(g, x, y, value) g->grid[x*g->length + y/4] = (g->grid[x*g->length + y/4] & ~(offset_mask(y) << 4)) | (value << ((y % 4) +4 ))
+// #define set_current_cell_value(g, x, y, value)  g->grid[x*g->length + y/4] =  (g->grid[x*g->length + y/4] & (~offset_mask(y))) | (value << (y % 4) )
+// #define set_next_cell_value(g, x, y, value) g->grid[x*g->length + y/4] = (g->grid[x*g->length + y/4] & ~(offset_mask(y) << 4)) | (value << ((y % 4) +4 ))
 
 # else
 
@@ -24,6 +24,28 @@
 #define set_next_cell_value(g, x, y, value) g->grid[x*g->length + y] = (g->grid[x*g->length + y] & CURRENT_FLAG) | (NEXT_FLAG & (value << 4));
 
 #endif 
+
+void set_next_cell_value(Grid* g, int x, int y, char value) {
+    char offset = ~(offset_mask(y) << 4);
+    char current_values = (g->grid[x*g->length + y/4] & offset);
+    char future_values =  (value << ((y % 4) +4 ));
+    g->grid[x*g->length + y/4] =  current_values | future_values;
+}
+
+char get_next_cell_value(Grid* g, int x, int y) {
+    return (g->grid[x*g->length + y/4] & (offset_mask(y) << 4) ) >> ((y % 4) + 4);
+}
+
+char get_current_cell_value(Grid* g, int x, int y) {
+    return (g->grid[x*g->length + y/4] & offset_mask(y)) >> (y % 4);
+}
+
+void set_current_cell_value(Grid* g, int x, int y, char value) {
+    char offset = (~offset_mask(y));
+    char current_values = (g->grid[x*g->length + y/4] & offset);
+    char future_values = value << (y % 4);
+    g->grid[x*g->length + y/4] =  current_values | future_values;
+} 
 
 /**
  * Initialises the Grid struct.
@@ -60,8 +82,8 @@ int get_number_of_live_neighbours(Grid* g, int x, int y){
 int update_cells(Grid* g) {
     int has_changed = 0;
 
-    for(int i=1; i < g->length-1; i++) {
-        for(int j=1; j < g->length-1; j++) {
+    for(int i=0; i < g->length; i++) {
+        for(int j=0; j < g->length; j++) {
             has_changed += get_next_cell_value(g,i,j) ^ get_current_cell_value(g,i,j);
             set_current_cell_value(g,i,j, get_next_cell_value(g,i,j));
         }
@@ -82,8 +104,8 @@ char compute_next_status(char current_status, int live_neighbours) {
  * Returns: 1 if this single iteration changed no cells, 0 otherwise.
  */
 int run_single_iteration(Grid* g) {
-    for(int i=1; i < g->length-1; i++) {
-        for(int j=1; j < g->length-1; j++) {
+    for(int i=0; i < g->length; i++) {
+        for(int j=0; j < g->length; j++) {
             char current_status = get_current_cell_value(g, i, j);
             int live_neighbours = get_number_of_live_neighbours(g, i, j);
             char next_status = compute_next_status(current_status, live_neighbours);
@@ -112,9 +134,9 @@ void delete_grid(Grid* g){
  * 
  */
 void print_grid(Grid* g, FILE* f) {
-    for(int i=1; i < g->length-1; i++) {
+    for(int i=0; i < g->length; i++) {
         fprintf(f, "\033[%d;3H", i+2);
-        for(int j=1; j < g->length-1; j++) {
+        for(int j=0; j < g->length; j++) {
             char value = get_current_cell_value(g, i, j) ? '+' : '-';
             fprintf(f, "%c ", value);
         }
@@ -129,9 +151,9 @@ void print_grid(Grid* g, FILE* f) {
  * 
  */
 void set_random_state(Grid* g, int random_alive_fraction){
-    for(int i=1; i < g->length-1; i++) {
-        for(int j=1; j < g->length-1; j++) {
-            set_current_cell_value(g, i, j, ((rand() % 100) < random_alive_fraction) & 0x01);
+    for(int i=0; i < g->length; i++) {
+        for(int j=0; j < g->length; j++) {
+            set_current_cell_value(g, i, j, ((char) ((rand() % 100) < random_alive_fraction)) & 0x01);
         }
     }
 }
